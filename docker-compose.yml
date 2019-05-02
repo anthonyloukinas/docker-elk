@@ -1,0 +1,92 @@
+## ELK Stack Docker-compose
+#
+# Written by: Anthony Loukinas - June 18th, 2018.
+#
+# Usage: `docker stack deploy c=docker-compose.yml elk`
+#
+
+version: '3' # 2=compose, 3=swarm
+services: 
+  elasticsearch: # log storage
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.3.0
+    deploy:
+      mode: replicated
+      replicas: 1 # spawn a single instance
+      restart_policy:
+        condition: on-failure
+    environment:
+      - cluster.name=es-cluster # name of our ES cluster
+      - "TZ=America/New_York"
+    volumes:
+      - "logs:/usr/share/elasticsearch/data"
+      - "./elasticsearch/jvm.options:/usr/share/elasticsearch/config/jvm.options:ro"
+      #- "./elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro"
+    ulimits:
+      memlock: # Swapping needs to be disabled for performance and node stability
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - "elk-net"
+
+  apm: # application monitoring
+    image: docker.elastic.co/apm/apm-server:6.4.2
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - "./apm/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro"
+    ports:
+      - "8200:8200"
+    networks:
+      - "elk-net"
+
+  logstash: # log ingress consumption
+    image: docker.elastic.co/logstash/logstash:6.3.0
+    deploy:
+      mode: replicated
+      replicas: 1 # spawn a single instance
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - "./logstash/pipeline:/usr/share/logstash/pipeline/"
+      - "./logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro"
+      - "./logstash/jvm.options:/usr/share/logstash/config/jvm.options:ro"
+    environment:
+      - "TZ=America/New_York"
+    ports:
+      - "12201:12201/udp"
+      - "2055:2055/udp"
+      - "514:10514/tcp"
+      - "514:10514/udp"
+      - "5044:5044/tcp"
+    networks:
+      - "elk-net"
+
+  kibana: # frontend gui
+    image: docker.elastic.co/kibana/kibana:6.3.0
+    deploy:
+      mode: replicated
+      replicas: 1 # spawn a single instance
+      restart_policy:
+        condition: on-failure
+    environment:
+      - SERVER_NAME=kibana 
+      - ELASTICSEARCH_URL=http://elasticsearch:9200 # this is default in docker, we set it anyway
+      - TZ=America/New_York
+#    volumes:
+#      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+    ports:
+      - "5601:5601"
+    networks:
+      - "elk-net"
+
+volumes:
+  logs:
+
+networks:
+  elk-net: # elk internal network

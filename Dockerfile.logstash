@@ -1,0 +1,15 @@
+FROM docker.elastic.co/logstash/logstash:6.3.0
+
+LABEL Maintainer="Anthony Loukinas <anthony.loukinas@redhat.com>"
+
+RUN bin/logstash-plugin install logstash-codec-sflow && \
+    bin/logstash-plugin update logstash-codec-netflow && \
+    bin/logstash-plugin update logstash-input-udp && \
+    bin/logstash-plugin update logstash-filter-dns
+
+COPY ./logstash/pipelines.yml /usr/share/logstash/config/pipelines.yml
+# COPY ./elastiflow-master/logstash/elastiflow /usr/share/logstash/config/elastiflow
+# COPY ./elastiflow-master/logstash.service.d /etc/systemd/system/logstash.service.d
+COPY ./logstash/logstash.yml /usr/share/logstash/config/logstash.yml
+
+RUN systemctl daemon-reload

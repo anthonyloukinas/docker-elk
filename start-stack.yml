@@ -1,0 +1,32 @@
+---
+- hosts: localhost
+  become: yes
+  vars:
+    # https://github.com/ansible/ansible/issues/15892#issuecomment-428675540
+    - format_string: !unsafe "{{.Name}} {{.CurrentState}}"
+  tasks:
+    - name: check if stack is already running
+      command: docker stack ls | grep elk
+      register: stackStatus
+      ignore_errors: yes
+
+    - name: remove elk stack
+      command: docker stack rm elk
+      register: stackTeardown
+
+    - name: start elk stack
+      command: docker stack deploy -c ./docker-compose.yml
+      register: deployStack
+
+    - name: wait for stack to come up
+      pause:
+        seconds: 45
+      when: deployStack is succeeded
+
+    - name: check individual containers
+      command: 'docker stack ps elk --format "{{ format_string }}" | grep Running | grep {{ item }}'
+      with_items:
+        - elasticsearch
+        - logstash
+        - kibana
+        - apm
